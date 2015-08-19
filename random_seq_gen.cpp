@@ -1,7 +1,9 @@
 #include <iostream>
 #include <cinttypes>
-#include <stdlib.h>     /* qsort */
+#include <stdlib.h>
 #include <iomanip>
+
+/* g++ -std=gnu++11 -Wall -O3 random_seq_gen.cpp */
 
 /*
 A Linear congruential generator. This code will generate a random sequence for 
@@ -28,29 +30,24 @@ private:
 #endif
 
 public:
-   RandGen(uint32_t seed){
-      this->val_ 	= seed;
+   RandGen(uint64_t seed){
+      this->val_ = seed;
       /* using values from "newlibC" library */
-      this->a_ 	= 6364136223846793005ULL;
-      this->c_ 	= 1;
-      //this->mod_ 	= 0x10000000000000000; // pow(2, 64), cannot assign as there is no data type greater than 64-bits
+      this->a_ = 6364136223846793005ULL;
+      this->c_ = 1;
+      //this->mod_ = 0x10000000000000000; // pow(2, 64), cannot assign as there is no data type greater than 64-bits
       
 #if ENABLE_SWAP
       uint32_t unsignedMask = 0xFFFFFFFF;
-      this->lowerCut_ 	= seed % 16;
-      this->upperCut_ 	= 32 - this->lowerCut_;
-      this->lowerMask_	= (~((0xFFFFFFFF >> this->lowerCut_)  << this->lowerCut_)) & unsignedMask;
-      this->upperMask_	= (~(this->lowerMask_)) & unsignedMask;
+      this->lowerCut_ = seed % 16;
+      this->upperCut_ = 32 - this->lowerCut_;
+      this->lowerMask_ = (~((0xFFFFFFFF >> this->lowerCut_)  << this->lowerCut_)) & unsignedMask;
+      this->upperMask_ = (~(this->lowerMask_)) & unsignedMask;
 #endif
    }
-   
-   /*
-   uint64_t getValueMod(void){
-      return this->mod_;
-   }
-   */
-   
-   /* generate a random no. */ 
+
+   /* generate & return a random no. */ 
+   //__attribute__((always_inline)) inline
    uint32_t getNxtVal(void){
       //this->val_ = (((uint64_t)this->a_ * this->val_) + this->c_) % this->mod_;
       /* this->mod_ = pow(2, 64). No modulo operation required as the output is 64 bit */
@@ -60,49 +57,29 @@ public:
       this->val_ = ((this->val_ & this->lowerMask_) << this->upperCut_) + ((this->val_ & this->upperMask_) >> this->lowerCut_);
 #endif
       return (this->val_ >> 32); // bits 63..32 to increase randomness (as done in newlibC ) 
-      }
+   }
    
    /* generate the next random sequence of the given "length" */
    void getNxtSeq(uint32_t *arr, uint32_t length){
       uint64_t i;
-      for (i = 0; i< length; i++){
+      for (i = 0; i < length; ++i){
          arr[i] = this->getNxtVal();
       }
    }
 
    /* generate the next random sequence of the given "length", skipping "skip_cnt" elements */
-   void getSeq(uint32_t *arr, uint32_t skip_cnt, uint32_t length){
+   void getSeq(uint32_t *arr, uint64_t skip_cnt, uint32_t length){
       uint64_t i;
-      for (i = 0; i< skip_cnt; i++){
+      
+      /* skipping elements */
+      for (i = 0; i < skip_cnt; ++i){
          this->getNxtVal();
       }
-
-      for (i = 0; i< length; i++){
-         arr[i] = this->getNxtVal();
-      }
+      
+      /* generating sequence */
+      this->getNxtSeq(arr, length);
    }
 };
-
-int compare (const void * a, const void * b)
-{
-   if ( *(uint32_t*)a <  *(uint32_t*)b ) return -1;
-   if ( *(uint32_t*)a >  *(uint32_t*)b ) return 1;
-   return 0; // equal
-}
-
-uint64_t checkDuplicates(uint32_t *arr, uint32_t len){
-   uint64_t i, cnt;
-   cnt = 0;
-   // Total O(NlogN + N)
-   qsort (arr, len, sizeof(uint32_t), compare); // O(NlogN)
-   std::cout << "* Sorted *" << std::endl;
-   for(i=0; i< len-1; i++){ // O(N)
-      if(arr[i] == arr[i+1]){
-         cnt++;
-      }
-   }
-   return cnt;
-}
 
 int main(int argc, char *argv[]){   
    if(argc < 4){
@@ -110,12 +87,15 @@ int main(int argc, char *argv[]){
       return 0;
    }
 
-   RandGen rd = RandGen(atoi(argv[1]));
-   uint64_t skip_cnt = atoi(argv[2]);
-   uint32_t seq_len = atoi(argv[3]);
+   uint64_t seed = strtoll(argv[1], NULL, 10);
+   uint64_t skip_cnt = strtoll(argv[2], NULL, 10);
+   uint32_t seq_len = strtol(argv[3], NULL, 10); // limited to 32-bits to avoid large output data (max 4GB)
    uint64_t i;
    uint32_t rnd_value;
 
+   /* Initialization */
+   RandGen rd = RandGen(seed);
+   
    /* skipping "skip_cnt" elements */
    rd.getSeq(NULL, skip_cnt, 0);
    
@@ -123,10 +103,12 @@ int main(int argc, char *argv[]){
    for(i = 0; i < seq_len; ++i){
       // get random no.
       rnd_value = rd.getNxtVal();
-      //std::cout << setfill('0') << setw(8) << hex << rnd_value << std::endl;
-      // display every random no. as charecters 
-      std::cout << char((rnd_value & 0xFF000000) >> 24) << char((rnd_value & 0x00FF0000) >> 16) \
-                << char((rnd_value & 0x0000FF00) >> 8)   << char(rnd_value & 0x000000FF);
+      //std::cout << std::setfill('0') << std::setw(8) << std::hex << rnd_value << std::endl;
+      // display every random no. as charecters, LSB first
+      std::cout << char(rnd_value & 0x000000FF)
+                << char((rnd_value & 0x0000FF00) >> 8)
+                << char((rnd_value & 0x00FF0000) >> 16)
+                << char((rnd_value & 0xFF000000) >> 24);
    }
    return 0;
 }
