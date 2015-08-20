@@ -87,9 +87,9 @@ int main(int argc, char *argv[]){
       return 0;
    }
 
-   uint64_t seed = strtoll(argv[1], NULL, 10);
-   uint64_t skip_cnt = strtoll(argv[2], NULL, 10);
-   uint32_t seq_len = strtol(argv[3], NULL, 10); // limited to 32-bits to avoid large output data (max 4GB)
+   uint64_t seed = strtoull(argv[1], NULL, 10);
+   uint64_t skip_cnt = strtoull(argv[2], NULL, 10);
+   uint32_t seq_len = strtoul(argv[3], NULL, 10); // limited to 32-bits to avoid large output data (max 4GB)
    uint64_t i;
    uint32_t rnd_value;
 
